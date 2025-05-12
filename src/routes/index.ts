@@ -1,0 +1,40 @@
+import { Router } from "express";
+import authRoutes from "./auth.routes";
+import studentRoutes from "./student.routes";
+import teacherRoutes from "./teacher.routes";
+import classRoutes from "./class.routes";
+import subjectRoutes from "./subject.routes";
+import feeRoutes from "./fee.routes";
+import attendanceRoutes from "./attendance.routes";
+import gradeRoutes from "./grade.routes";
+import parentRoutes from "./parent.routes";
+import reportRoutes from "./report.routes";
+import notificationRoutes from "./notification.routes";
+import searchRoutes from "./search.routes";
+import userRoutes from "./user.routes";
+import academicTermRoutes from "./academic-term.routes";
+import feeTypeRoutes from "./fee-type.routes";
+import feeClassPricingRoutes from "./fee-class-pricing.routes";
+import dailyFeedingRoutes from "./daily-feeding.routes";
+
+const router = Router();
+
+router.use("/auth", authRoutes);
+router.use("/students", studentRoutes);
+router.use("/teachers", teacherRoutes);
+router.use("/classes", classRoutes);
+router.use("/subjects", subjectRoutes);
+router.use("/fees", feeRoutes);
+router.use("/attendance", attendanceRoutes);
+router.use("/grades", gradeRoutes);
+router.use("/parents", parentRoutes);
+router.use("/reports", reportRoutes);
+router.use("/notifications", notificationRoutes);
+router.use("/search", searchRoutes);
+router.use("/users", userRoutes);
+router.use("/academic-terms", academicTermRoutes);
+router.use("/fee-types", feeTypeRoutes);
+router.use("/fee-class-pricing", feeClassPricingRoutes);
+router.use("/daily-feeding", dailyFeedingRoutes);
+
+export default router;
