@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URI=${postgresql://school-db_owner:npg_eEaSWv02rdUM@ep-broad-snow-a5l1o9vs-pooler.us-east-2.aws.neon.tech/school-db?sslmode=require}
+    volumes:
+      - .:/app
+      - /app/node_modules
