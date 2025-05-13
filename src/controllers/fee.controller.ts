@@ -358,7 +358,7 @@ export const recordPayment = asyncHandler(
         UPDATE fees 
         SET status = CASE
           WHEN (
-            SELECT COALESCE(SUM(amount_paid), 0) + ${paymentData.amount_paid}
+            SELECT COALESCE(SUM(amount_paid), 0) 
             FROM fee_payments 
             WHERE fee_id = ${id}
           ) >= (
