@@ -16,6 +16,7 @@ import academicTermRoutes from "./academic-term.routes";
 import feeTypeRoutes from "./fee-type.routes";
 import feeClassPricingRoutes from "./fee-class-pricing.routes";
 import dailyFeedingRoutes from "./daily-feeding.routes";
+import customFeeRoutes from "./custom-fee.routes";
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use("/academic-terms", academicTermRoutes);
 router.use("/fee-types", feeTypeRoutes);
 router.use("/fee-class-pricing", feeClassPricingRoutes);
 router.use("/daily-feeding", dailyFeedingRoutes);
+router.use("/custom-fees", customFeeRoutes);
 
 export default router;
