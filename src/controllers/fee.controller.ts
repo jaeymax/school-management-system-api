@@ -12,7 +12,15 @@ export const getAllFees = asyncHandler(async (req: Request, res: Response) => {
       at.name as academic_term,
       u.username as student_name,
       c.name as class_name,
-      fcp.amount as amount,
+      COALESCE(
+        (
+          SELECT custom_amount 
+          FROM custom_student_fees csf 
+          WHERE csf.student_id = f.student_id 
+          AND csf.fee_type_id = f.fee_type_id
+        ),
+        fcp.amount
+      ) as amount,
       (
         SELECT COALESCE(SUM(amount_paid), 0)
         FROM fee_payments
@@ -37,7 +45,11 @@ export const getAllFees = asyncHandler(async (req: Request, res: Response) => {
         )
         FROM fee_payments fp
         WHERE fp.fee_id = f.fee_id
-      ) as payments
+      ) as payments,
+      CASE 
+        WHEN csf.custom_fee_id IS NOT NULL THEN true 
+        ELSE false 
+      END as has_custom_fee
     FROM fees f
     JOIN fee_types ft ON f.fee_type_id = ft.fee_type_id
     JOIN fee_class_pricing fcp ON f.fee_class_pricing_id = fcp.pricing_id
@@ -45,6 +57,10 @@ export const getAllFees = asyncHandler(async (req: Request, res: Response) => {
     JOIN students s ON f.student_id = s.student_id
     JOIN users u ON s.user_id = u.user_id
     JOIN classes c ON s.class_id = c.class_id
+    LEFT JOIN custom_student_fees csf ON (
+      csf.student_id = f.student_id 
+      AND csf.fee_type_id = f.fee_type_id
+    )
     ORDER BY f.due_date DESC
   `;
 
@@ -183,7 +199,7 @@ export const createBulkFees = asyncHandler(
             'pending'
           FROM unnest(${students.map((s) => s.student_id)}) AS s(student_id)
           RETURNING *
-        `
+        `,
       ];
       return queries;
     });
@@ -228,7 +244,7 @@ export const createFeesForAllStudents = asyncHandler(
 
       for (const class_id in studentsByClass) {
         const studentIds = studentsByClass[class_id];
-        
+
         queries.push(
           tx`
             WITH pricing AS (
@@ -329,10 +345,23 @@ export const recordPayment = asyncHandler(
     const [[fee, newPayment, updatedFee]] = await sql.transaction((tx) => {
       const queries = [
         tx`
-        SELECT f.*, fcp.amount as fee_amount
-        FROM fees f
-        JOIN fee_class_pricing fcp ON f.fee_class_pricing_id = fcp.pricing_id
-        WHERE f.fee_id = ${id}
+        WITH fee_amount AS (
+          SELECT 
+            f.*,
+            COALESCE(
+              (
+                SELECT custom_amount 
+                FROM custom_student_fees csf 
+                WHERE csf.student_id = f.student_id 
+                AND csf.fee_type_id = f.fee_type_id
+              ),
+              fcp.amount
+            ) as total_amount
+          FROM fees f
+          JOIN fee_class_pricing fcp ON f.fee_class_pricing_id = fcp.pricing_id
+          WHERE f.fee_id = ${id}
+        )
+        SELECT * FROM fee_amount
       `,
         tx`
         INSERT INTO fee_payments (
@@ -355,24 +384,34 @@ export const recordPayment = asyncHandler(
         RETURNING *
       `,
         tx`
+        WITH fee_amount AS (
+          SELECT 
+            COALESCE(
+              (
+                SELECT custom_amount 
+                FROM custom_student_fees csf 
+                WHERE csf.student_id = f.student_id 
+                AND csf.fee_type_id = f.fee_type_id
+              ),
+              fcp.amount
+            ) as total_amount
+          FROM fees f
+          JOIN fee_class_pricing fcp ON f.fee_class_pricing_id = fcp.pricing_id
+          WHERE f.fee_id = ${id}
+        )
         UPDATE fees 
         SET status = CASE
           WHEN (
             SELECT COALESCE(SUM(amount_paid), 0) 
             FROM fee_payments 
             WHERE fee_id = ${id}
-          ) >= (
-            SELECT amount 
-            FROM fee_class_pricing 
-            WHERE pricing_id = fees.fee_class_pricing_id
-          ) THEN 'paid'
+          ) >= (SELECT total_amount FROM fee_amount) THEN 'paid'
           ELSE status
         END
         WHERE fee_id = ${id}
         RETURNING *
       `,
       ];
-
       return queries;
     });
 

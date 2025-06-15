@@ -16,7 +16,15 @@ export const getAllDailyFeeding = asyncHandler(
       df.*,
       u.username as student_name,
       c.name as class_name,
-      fcp.amount as fee_amount,
+      COALESCE(
+        (
+          SELECT custom_amount 
+          FROM custom_student_fees csf 
+          WHERE csf.student_id = df.student_id 
+          AND csf.fee_type_id = fcp.fee_type_id
+        ),
+        fcp.amount
+      ) as fee_amount,
       COALESCE(
         (SELECT SUM(amount_paid) FROM daily_fee_payments WHERE feeding_id = df.feeding_id), 
         0
@@ -37,42 +45,50 @@ export const getAllDailyFeeding = asyncHandler(
         )
         FROM daily_fee_payments dfp
         WHERE dfp.feeding_id = df.feeding_id
-      ) as payments
+      ) as payments,
+      CASE 
+        WHEN csf.custom_fee_id IS NOT NULL THEN true 
+        ELSE false 
+      END as has_custom_fee
     FROM daily_feeding_fees df
     JOIN students s ON df.student_id = s.student_id
     JOIN users u ON s.user_id = u.user_id
     JOIN classes c ON s.class_id = c.class_id
     JOIN fee_class_pricing fcp ON df.fee_class_pricing_id = fcp.pricing_id
+    LEFT JOIN custom_student_fees csf ON (
+      csf.student_id = df.student_id 
+      AND csf.fee_type_id = fcp.fee_type_id
+    )
   `;
 
-  // Add date filter if provided
-  let finalQuery;
-  if (date) {
-    // Ensure date is in the correct format
-    finalQuery = sql`${baseQuery} WHERE df.date = '2025-05-05'`;
-    console.log("Date filter applied:", date);
-  }
-  else {
-    // query without the date
-    finalQuery = baseQuery
-  }
+    // Add date filter if provided
+    let finalQuery;
+    if (date) {
+      // Ensure date is in the correct format
+      finalQuery = sql`${baseQuery} WHERE df.date = '2025-05-05'`;
+      console.log("Date filter applied:", date);
+    } else {
+      // query without the date
+      finalQuery = baseQuery;
+    }
 
-  // Add ordering
- // query = sql`${query} ORDER BY df.date DESC, u.username`;
+    // Add ordering
+    // query = sql`${query} ORDER BY df.date DESC, u.username`;
 
-  try {
-    const feeding = await finalQuery;
-    
-    res.status(200).json({
-      success: true,
-      count: feeding?.length,
-      data: feeding,
-    });
-  } catch (error) {
-    console.error('Database error:', error);
-    throw new Error('Failed to fetch daily feeding records');
+    try {
+      const feeding = await finalQuery;
+
+      res.status(200).json({
+        success: true,
+        count: feeding?.length,
+        data: feeding,
+      });
+    } catch (error) {
+      console.error("Database error:", error);
+      throw new Error("Failed to fetch daily feeding records");
+    }
   }
-});
+);
 
 export const getDailyFeedingById = asyncHandler(
   async (req: Request, res: Response) => {
@@ -347,42 +363,70 @@ export const recordFeedingPayment = asyncHandler(
       (tx) => {
         const queries = [
           tx`
-        SELECT df.*, fcp.amount as fee_amount
-        FROM daily_feeding_fees df
-        JOIN fee_class_pricing fcp ON df.fee_class_pricing_id = fcp.pricing_id
-        WHERE df.feeding_id = ${id}
-      `,
+            WITH fee_amount AS (
+              SELECT 
+                df.*,
+                COALESCE(
+                  (
+                    SELECT custom_amount 
+                    FROM custom_student_fees csf 
+                    WHERE csf.student_id = df.student_id 
+                    AND csf.fee_type_id = fcp.fee_type_id
+                  ),
+                  fcp.amount
+                ) as total_amount
+              FROM daily_feeding_fees df
+              JOIN fee_class_pricing fcp ON df.fee_class_pricing_id = fcp.pricing_id
+              WHERE df.feeding_id = ${id}
+            )
+            SELECT * FROM fee_amount
+          `,
           tx`
-        INSERT INTO daily_fee_payments (
-          feeding_id,
-          amount_paid,
-          payment_method,
-          transaction_reference,
-          received_by,
-          notes
-        ) VALUES (
-          ${id},
-          ${paymentData.amount_paid},
-          ${paymentData.payment_method},
-          ${paymentData.transaction_reference || null},
-          ${paymentData.received_by || null},
-          ${paymentData.notes || null}
-        )
-        RETURNING *
-      `,
+            INSERT INTO daily_fee_payments (
+              feeding_id,
+              amount_paid,
+              payment_method,
+              transaction_reference,
+              received_by,
+              notes
+            ) VALUES (
+              ${id},
+              ${paymentData.amount_paid},
+              ${paymentData.payment_method},
+              ${paymentData.transaction_reference || null},
+              ${paymentData.received_by || null},
+              ${paymentData.notes || null}
+            )
+            RETURNING *
+          `,
           tx`
-        UPDATE daily_feeding_fees 
-        SET status = CASE
-          WHEN ${paymentData.amount_paid} >= (
-            SELECT amount 
-            FROM fee_class_pricing 
-            WHERE pricing_id = daily_feeding_fees.fee_class_pricing_id
-          ) THEN 'paid'
-          ELSE status
-        END
-        WHERE feeding_id = ${id}
-        RETURNING *
-      `,
+            WITH fee_amount AS (
+              SELECT 
+                COALESCE(
+                  (
+                    SELECT custom_amount 
+                    FROM custom_student_fees csf 
+                    WHERE csf.student_id = df.student_id 
+                    AND csf.fee_type_id = fcp.fee_type_id
+                  ),
+                  fcp.amount
+                ) as total_amount
+              FROM daily_feeding_fees df
+              JOIN fee_class_pricing fcp ON df.fee_class_pricing_id = fcp.pricing_id
+              WHERE df.feeding_id = ${id}
+            )
+            UPDATE daily_feeding_fees 
+            SET status = CASE
+              WHEN (
+                SELECT COALESCE(SUM(amount_paid), 0) 
+                FROM daily_fee_payments 
+                WHERE feeding_id = ${id}
+              ) >= (SELECT total_amount FROM fee_amount) THEN 'paid'
+              ELSE status
+            END
+            WHERE feeding_id = ${id}
+            RETURNING *
+          `,
         ];
 
         return queries;
