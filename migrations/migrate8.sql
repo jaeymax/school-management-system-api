@@ -1,0 +1,2 @@
+ALTER TABLE fee_payments
+ADD COLUMN balance DECIMAL(10,2) DEFAULT 0.00;

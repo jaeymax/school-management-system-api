@@ -16,6 +16,8 @@ export interface ICreateFee {
   academic_term_id?: number;
   due_date: Date;
   status?: "pending" | "paid" | "overdue" | "cancelled";
+  amount:number;
+  is_tuition?: boolean;
 }
 
 export interface IFeePayment {

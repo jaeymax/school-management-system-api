@@ -17,6 +17,8 @@ import feeTypeRoutes from "./fee-type.routes";
 import feeClassPricingRoutes from "./fee-class-pricing.routes";
 import dailyFeedingRoutes from "./daily-feeding.routes";
 import customFeeRoutes from "./custom-fee.routes";
+import tuitionArrearsRoutes from "./tuition-arrears.routes";
+import schoolSettingsRoutes from "./school-settings.routes";
 
 const router = Router();
 
@@ -38,5 +40,7 @@ router.use("/fee-types", feeTypeRoutes);
 router.use("/fee-class-pricing", feeClassPricingRoutes);
 router.use("/daily-feeding", dailyFeedingRoutes);
 router.use("/custom-fees", customFeeRoutes);
+router.use("/tuition-arrears", tuitionArrearsRoutes);
+router.use("/school-settings", schoolSettingsRoutes);
 
 export default router;

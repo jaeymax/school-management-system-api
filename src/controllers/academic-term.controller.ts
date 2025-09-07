@@ -8,33 +8,89 @@ export const createAcademicTerm = asyncHandler(
     const termData: ICreateAcademicTerm = req.body;
 
     try {
-      // If this term is set as current, update all other terms to not current
+      let newTerm;
+
+      // If this term is set as current, handle the transition
       if (termData.is_current) {
-        await sql`
-        UPDATE academic_terms 
-        SET is_current = false 
-        WHERE is_current = true
-      `;
+        [[newTerm]] = await sql.transaction((tx) => {
+          return [
+            // Get current term and process if exists
+            tx`
+              WITH current_term AS (
+                SELECT term_id 
+                FROM academic_terms 
+                WHERE is_current = true
+              ),
+              process_arrears AS (
+                UPDATE students s
+                SET tuition_arrears = s.tuition_arrears + COALESCE((
+                  SELECT SUM(
+                    f.original_amount + f.arrears_applied - 
+                    COALESCE((
+                      SELECT SUM(amount_paid) 
+                      FROM fee_payments 
+                      WHERE fee_id = f.fee_id
+                    ), 0)
+                  )
+                  FROM fees f
+                  WHERE f.student_id = s.student_id
+                  AND f.academic_term_id = (SELECT term_id FROM current_term)
+                  AND f.is_tuition = true
+                  AND f.status IN ('pending', 'partial')
+                ), 0)
+                WHERE EXISTS (SELECT 1 FROM current_term)
+                RETURNING student_id
+              ),
+              mark_overdue AS (
+                UPDATE fees
+                SET status = 'overdue'
+                WHERE academic_term_id = (SELECT term_id FROM current_term)
+                AND status IN ('pending', 'partial')
+                AND EXISTS (SELECT 1 FROM current_term)
+              ),
+              update_current AS (
+                UPDATE academic_terms 
+                SET is_current = false 
+                WHERE is_current = true
+                AND EXISTS (SELECT 1 FROM current_term)
+              )
+              INSERT INTO academic_terms (
+                name,
+                start_date,
+                end_date,
+                is_current
+              ) VALUES (
+                ${termData.name},
+                ${termData.start_date},
+                ${termData.end_date},
+                true
+              )
+              RETURNING *
+            `,
+          ];
+        });
+      } else {
+        // Create term without transition if not current
+        [newTerm] = await sql`
+          INSERT INTO academic_terms (
+            name,
+            start_date,
+            end_date,
+            is_current
+          ) VALUES (
+            ${termData.name},
+            ${termData.start_date},
+            ${termData.end_date},
+            false
+          )
+          RETURNING *
+        `;
       }
 
-      const newTerm = await sql`
-      INSERT INTO academic_terms (
-        name,
-        start_date,
-        end_date,
-        is_current
-      ) VALUES (
-        ${termData.name},
-        ${termData.start_date},
-        ${termData.end_date},
-        ${termData.is_current || false}
-      )
-      RETURNING *
-    `;
-
       res.status(201).json({
+        success: true,
         message: "Academic term created successfully",
-        term: newTerm[0],
+        data: newTerm,
       });
     } catch (error) {
       res.status(400);

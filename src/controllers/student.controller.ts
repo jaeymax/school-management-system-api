@@ -11,6 +11,7 @@ export const getAllStudents = asyncHandler(
         s.student_id,
         s.user_id,
         s.class_id,
+        s.tuition_arrears,
         u.username,
         u.email,
         u.phone,
@@ -43,19 +44,28 @@ export const getStudentById = asyncHandler(
 
     const [student] = await sql`
     SELECT 
-      s.student_id,
-      s.user_id,
-      s.class_id,
+      s.*,
       u.username,
       u.email,
-      u.phone,
-      u.gender,
-      u.profile_image,
       c.name as class_name,
-      c.description as class_description
-    FROM Students s
-    JOIN Users u ON s.user_id = u.user_id
-    JOIN Classes c ON s.class_id = c.class_id
+      s.tuition_arrears,
+      (
+        SELECT json_agg(
+          json_build_object(
+            'term_name', at.name,
+            'amount_paid', ah.amount_paid,
+            'previous_arrears', ah.previous_arrears,
+            'new_arrears', ah.new_arrears,
+            'recorded_at', ah.recorded_at
+          )
+        )
+        FROM tuition_arrears_history ah
+        JOIN academic_terms at ON ah.term_id = at.term_id
+        WHERE ah.student_id = s.student_id
+      ) as arrears_history
+    FROM students s
+    JOIN users u ON s.user_id = u.user_id
+    JOIN classes c ON s.class_id = c.class_id
     WHERE s.student_id = ${id}
   `;
 
@@ -145,6 +155,8 @@ export const updateStudent = asyncHandler(
           RETURNING *
         `);
         }
+
+        queries.push(tx`UPDATE students SET tuition_arrears = ${updateData.tuition_arrears} where student_id = ${id}`)
 
         return queries;
       });

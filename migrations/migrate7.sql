@@ -3,7 +3,7 @@ ADD COLUMN tuition_arrears DECIMAL(10,2) DEFAULT 0.00;
 
 CREATE TABLE tuition_arrears_history (
     record_id SERIAL PRIMARY KEY,
-    student_id INT NOT NULL REFERENCES students(student_id),
+    student_id INT NOT NULL REFERENCES students(student_id),    
     term_id INT NOT NULL REFERENCES academic_terms(term_id),
     previous_arrears DECIMAL(10,2) NOT NULL,
     new_arrears DECIMAL(10,2) NOT NULL,

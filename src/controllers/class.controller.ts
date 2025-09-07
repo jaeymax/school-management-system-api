@@ -10,7 +10,6 @@ export const getAllClasses = asyncHandler(
       c.*,
       t.teacher_id,
       u.username as teacher_name,
-      at.name as academic_term_name,
       (
         SELECT COUNT(*)
         FROM Students s
@@ -19,7 +18,6 @@ export const getAllClasses = asyncHandler(
     FROM Classes c
     LEFT JOIN Teachers t ON c.teacher_id = t.teacher_id
     LEFT JOIN Users u ON t.user_id = u.user_id
-    LEFT JOIN academic_terms at ON c.academic_term_id = at.term_id
     ORDER BY c.name
   `;
 
@@ -64,12 +62,11 @@ export const createClass = asyncHandler(async (req: Request, res: Response) => {
     INSERT INTO Classes (
       name,
       description,
-      academic_term_id,
       teacher_id
     ) VALUES (
       ${classData.name},
       ${classData.description || null},
-      ${classData.academic_term_id || null},
+     
       ${classData.teacher_id || null}
     )
     RETURNING *

@@ -55,19 +55,19 @@ CREATE TABLE academic_terms (
     is_current BOOLEAN DEFAULT FALSE
 );
 
-CREATE TABLE fees (
-    fee_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    student_id INT NOT NULL,
-    fee_type_id INT NOT NULL,
-    academic_term_id INT,  -- Link to school term/semester
-    amount DECIMAL(10,2) NOT NULL,
-    due_date DATE NOT NULL,
-    status VARCHAR(20) CHECK (status IN ('pending', 'paid', 'overdue', 'cancelled')) DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (student_id) REFERENCES students(student_id),
-    FOREIGN KEY (fee_type_id) REFERENCES fee_types(fee_type_id),
-    FOREIGN KEY (academic_term_id) REFERENCES academic_terms(term_id)
-);
+-- CREATE TABLE fees (
+--     fee_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+--     student_id INT NOT NULL,
+--     fee_type_id INT NOT NULL,
+--     academic_term_id INT,  -- Link to school term/semester
+--     amount DECIMAL(10,2) NOT NULL,
+--     due_date DATE NOT NULL,
+--     status VARCHAR(20) CHECK (status IN ('pending', 'paid', 'overdue', 'cancelled')) DEFAULT 'pending',
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     FOREIGN KEY (student_id) REFERENCES students(student_id),
+--     FOREIGN KEY (fee_type_id) REFERENCES fee_types(fee_type_id),
+--     FOREIGN KEY (academic_term_id) REFERENCES academic_terms(term_id)
+-- );
 
 CREATE TABLE fee_payments (
     payment_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
